@@ -44,10 +44,10 @@ def analyze_image_with_llm(image_url, ticker, interval):
         if API_PROVIDER.lower() == "gemini":
             # Gemini Implementation
             genai.configure(api_key=API_KEY)
+            # Use standard Flash model (highest free compatibility)
             model = genai.GenerativeModel('gemini-flash-latest') 
             
             # Gemini typically expects image data, not just a URL (unless it's a public URL).
-            # Since our URL is a data URI or a fresh S3 link, downloading it is safer.
             import requests
             from io import BytesIO
             from PIL import Image
@@ -66,14 +66,14 @@ def analyze_image_with_llm(image_url, ticker, interval):
             return response.text
             
         else:
-            # OpenAI Implementation
+            # OpenAI Implementation - Recommending gpt-4o-mini for "unlimited" feel
             client = OpenAI(api_key=API_KEY)
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": ICT_SYSTEM_PROMPT},
                     {"role": "user", "content": [
-                        {"type": "text", "text": f"Analyze this {interval} chart for {ticker}."},
+                        {"type": "text", "text": f"Analyze this multi-timeframe grid chart for {ticker}."},
                         {"type": "image_url", "image_url": {"url": image_url}}
                     ]} 
                 ]
@@ -116,7 +116,7 @@ def run_analysis_cycle():
                 
                 images_data = [] # List of (interval, PIL.Image)
                 
-                # 1. Fetch all charts
+                # 1. Fetch and save all charts
                 for interval in TIMEFRAMES:
                     try:
                         logger.info(f"  📸 Fetching chart: {ticker} [{interval}]")
@@ -131,10 +131,21 @@ def run_analysis_cycle():
                                 import requests
                                 image_data = requests.get(image_url).content
                             
+                            # Save individual image for the user to see clearly
+                            img_filename = f"{ticker_clean}_{interval}_{timestamp}.png"
+                            img_path = os.path.join(img_dir, img_filename)
+                            with open(img_path, "wb") as f:
+                                f.write(image_data)
+                            
                             from io import BytesIO
                             from PIL import Image
                             img = Image.open(BytesIO(image_data))
-                            images_data.append((interval, img, image_data))
+                            # Keep record of both PIL image for grid and filename for the brief
+                            images_data.append({
+                                "interval": interval,
+                                "img": img,
+                                "filename": img_filename
+                            })
                         else:
                             logger.error(f"  ❌ Failed to get image for {ticker} [{interval}]")
                     except Exception as e:
@@ -144,33 +155,30 @@ def run_analysis_cycle():
                     logger.error(f"  ❌ No images fetched for {ticker}. Skipping.")
                     continue
 
-                # 2. Create Grid Image
-                # We'll create a vertical stack or a 2-column grid. Let's do a simple vertical stack for clarity.
-                total_height = sum(img[1].size[1] for img in images_data)
-                max_width = max(img[1].size[0] for img in images_data)
+                # 2. Create Grid Image (for AI)
+                total_height = sum(data["img"].size[1] for data in images_data)
+                max_width = max(data["img"].size[0] for data in images_data)
                 
-                from PIL import Image, ImageDraw, ImageFont
+                from PIL import Image, ImageDraw
                 grid_img = Image.new('RGB', (max_width, total_height + (len(images_data) * 40)), (255, 255, 255))
                 y_offset = 0
                 
-                for interval, img, _ in images_data:
+                for data in images_data:
                     # Draw a label
                     draw = ImageDraw.Draw(grid_img)
-                    draw.text((10, y_offset + 5), f"Timeframe: {interval}", fill=(0, 0, 0))
+                    draw.text((10, y_offset + 5), f"Timeframe: {data['interval']}", fill=(0, 0, 0))
                     y_offset += 30
                     
-                    grid_img.paste(img, (0, y_offset))
-                    y_offset += img.size[1] + 10
+                    grid_img.paste(data["img"], (0, y_offset))
+                    y_offset += data["img"].size[1] + 10
 
-                # 3. Save Grid Image
-                timestamp = time.strftime("%Y%m%d_%H%M")
+                # 3. Save Grid Image (technical record)
                 grid_filename = f"{ticker_clean}_grid_{timestamp}.png"
                 grid_path = os.path.join(img_dir, grid_filename)
                 grid_img.save(grid_path)
                 logger.info(f"✅ Grid image saved: {grid_path}")
 
-                # 4. Single AI Analysis
-                # Convert grid to base64 for the API call (as analyze_image_with_llm expects a URL/URI)
+                # 4. Single AI Analysis (using the grid to save tokens)
                 from io import BytesIO
                 buffered = BytesIO()
                 grid_img.save(buffered, format="PNG")
@@ -180,12 +188,16 @@ def run_analysis_cycle():
                 logger.info(f"🧠 Performing single ICT analysis on the combined grid...")
                 full_analysis = analyze_image_with_llm(grid_data_uri, ticker, "Combined (5mo-D)")
 
-                # 5. Assemble Brief
-                brief_content.append(f"## Multi-Timeframe Combined Analysis")
-                brief_content.append(f"![Grid Chart](images/{grid_filename})")
-                brief_content.append("")
+                # 5. Assemble Brief (Displaying individual high-res charts for the user)
+                brief_content.append(f"## Top-Down Analysis Summary")
                 brief_content.append(full_analysis)
                 brief_content.append("\n---\n")
+                
+                brief_content.append("## Detailed Timeframe Charts")
+                for data in images_data:
+                    brief_content.append(f"### Timeframe: {data['interval']}")
+                    brief_content.append(f"![Chart {data['interval']}](images/{data['filename']})")
+                    brief_content.append("")
 
                 # Save Brief
                 filename = f"briefs/Brief_{ticker_clean}_{timestamp}.md"
