@@ -1,4 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/ertugrul59-tradingview-chart-mcp-badge.png)](https://mseep.ai/app/ertugrul59-tradingview-chart-mcp)
 
 # MCP Server - TradingView Chart Image Scraper
 
