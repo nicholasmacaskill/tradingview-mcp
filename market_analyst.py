@@ -47,13 +47,14 @@ def analyze_image_with_llm(image_data_uri, ticker, interval):
         return "Analysis skipped (No API Key)"
 
     # List of free models to try in order (Matched to your specific account)
-    model_names = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+    model_names = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro-vision", "gemini-flash-latest"]
     
     for model_name in model_names:
         logger.info(f"🧠 Attempting analysis with {model_name.upper()}...")
         
         try:
             genai.configure(api_key=GEMINI_API_KEY)
+            # Use beta version for some newer models if needed
             model = genai.GenerativeModel(model_name)
             
             # Extract image for Gemini
@@ -108,6 +109,8 @@ def run_analysis_cycle():
                 for interval in TIMEFRAMES:
                     try:
                         logger.info(f"  📸 Fetching: {ticker} [{interval}]")
+                        # Add stabilization sleep for indicators to render
+                        time.sleep(5) 
                         image_url = scraper.get_chart_image_url(ticker, interval)
                         if image_url:
                             if image_url.startswith("data:image"):
