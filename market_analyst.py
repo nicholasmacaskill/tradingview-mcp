@@ -88,9 +88,32 @@ def trigger_notification(score, ticker):
     except Exception as e:
         logger.error(f"Failed to send notification: {e}")
 
+def purge_old_files(directory, days=2):
+    """Deletes files in the specified directory older than 'days'."""
+    now = time.time()
+    cutoff = now - (days * 86400)
+    
+    if not os.path.exists(directory):
+        return
+
+    for filename in os.listdir(directory):
+        filepath = os.path.join(directory, filename)
+        if os.path.isfile(filepath):
+            if os.path.getmtime(filepath) < cutoff:
+                try:
+                    os.remove(filepath)
+                    logger.info(f"🧹 Purged old file: {filename}")
+                except Exception as e:
+                    logger.error(f"Failed to purge {filename}: {e}")
+
 def run_analysis_cycle():
     """Runs one full cycle of analysis with visual optimizations."""
     logger.info("🚀 Starting analysis cycle...")
+    
+    # Auto-purge files older than 2 days to keep workspace clean
+    purge_old_files("briefs")
+    purge_old_files("briefs/images")
+    
     os.makedirs("briefs/images", exist_ok=True)
     
     headless = os.getenv("MCP_SCRAPER_HEADLESS", "True").lower() == "true"
