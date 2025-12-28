@@ -180,12 +180,16 @@ def run_analysis_cycle():
                     f"**Date**: {time.strftime('%Y-%m-%d %H:%M:%S')}",
                     "",
                     "## Top-Down Antigravity Analysis",
-                    analysis.replace(f"[HTF_LEVEL: {level_price}]" if level_match else "", ""), # Clean tag from brief
+                    analysis.replace(f"[HTF_LEVEL: {level_price}]" if level_match else "", ""),
                     "\n---\n",
-                    "## Detailed Timeframe Charts"
+                    "## Detailed Timeframe Charts",
+                    f"**Grid Overview**: ![Grid](images/{grid_filename})",
+                    ""
                 ]
                 for d in images_data:
-                    brief_content.append(f"### {d['interval']}\n![Chart](images/{d['filename']})")
+                    brief_content.append(f"### {ticker} [{d['interval']}]")
+                    brief_content.append(f"![Chart](images/{d['filename']})")
+                    brief_content.append("")
 
                 filename = f"briefs/Brief_{ticker_clean}_{timestamp}.md"
                 with open(filename, "w") as f:
