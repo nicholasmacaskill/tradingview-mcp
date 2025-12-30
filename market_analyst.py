@@ -77,13 +77,13 @@ def analyze_image_with_llm(image_data_uri, ticker, interval):
 
     return "❌ Error: All free Gemini models failed or daily quota exceeded."
 
-def trigger_notification(score, ticker):
-    """Triggers a Mac terminal alert for high confidence setups."""
-    msg = f"🚀 ANTIGRAVITY ALERT: {ticker} Confidence Score: {score}!"
+def trigger_notification(score, ticker, bias="N/A"):
+    """Triggers a Mac terminal alert for generated briefs."""
+    msg = f"Hourly Briefing: {ticker}\nBias: {bias} | Confidence: {score}/10"
     logger.info(f"🔔 {msg}")
     try:
-        # Mac osascript for system notification
-        cmd = f'display notification "{msg}" with title "Market Analyst Bot" sound name "Glass"'
+        # Standard Mac Notification
+        cmd = f'display notification "{msg}" with title "ICT Analyst" sound name "Glass"'
         subprocess.run(["osascript", "-e", cmd])
     except Exception as e:
         logger.error(f"Failed to send notification: {e}")
@@ -186,12 +186,15 @@ def run_analysis_cycle():
                     draw.line([(0, 15), (max_width, 15)], fill=(255, 0, 0), width=3)
                     draw.text((max_width - 150, 5), f"LVL: {level_price}", fill=(255, 0, 0))
 
-                # 5. Check Confidence for Alerts
+                # 5. Check Confidence / Extract Details
+                bias_match = re.search(r"\*\*Bias\*\*: ([\w]+)", analysis)
+                bias = bias_match.group(1) if bias_match else "UNKNOWN"
+
                 conf_match = re.search(r"Confidence:\s*(\d+)", analysis)
-                if conf_match:
-                    score = int(conf_match.group(1))
-                    if score > 8:
-                        trigger_notification(score, ticker)
+                score = int(conf_match.group(1)) if conf_match else 0
+                
+                # Always notify for hourly updates
+                trigger_notification(score, ticker, bias)
 
                 # 6. Save and Push
                 grid_filename = f"{ticker_clean}_grid_{timestamp}.png"

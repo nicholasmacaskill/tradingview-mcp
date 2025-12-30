@@ -1159,6 +1159,63 @@ class TradingViewScraper:
 
         return output_string
 
+    def get_current_price(self, ticker: str) -> Optional[float]:
+        """
+        Fetches the current price for a ticker from the chart.
+        
+        Args:
+            ticker: The ticker symbol.
+            
+        Returns:
+            The current price as a float, or None if not found.
+        """
+        if not self.driver:
+            raise TradingViewScraperError("Driver not initialized.")
+
+        try:
+             # Ensure we are on the right chart
+            current_url = self.driver.current_url
+            if ticker not in current_url:
+                 self._navigate_and_wait(
+                    f"{self.TRADINGVIEW_CHART_BASE_URL}{self.config['chart_page_id']}/?symbol={ticker}"
+                )
+            
+            # Try multiple selectors for the price
+            # 1. The main legend value (often the most reliable for current close)
+            # 2. The price axis label (might be hard to pinpoint exact current)
+            
+            # Selector for the data in the legend (Open, High, Low, Close)
+            # Usually the last item in the hollow series values is Close
+            
+            # Strategy: Look for the dynamic data values in the top bar
+            price_element = None
+            
+            # Try standard legend item values
+            # These are usually span elements within the legend-source class
+            
+            # Wait briefly for price update
+            time.sleep(1.0)
+            
+            # Attempt to find the series value. 
+            # In TradingView DOM, the simple way is often the title or specific data-name attributes
+            # But the specific "current price" is often in the price scale or the legend.
+            
+            # Let's try grabbing the document title first as a fallback, nearly always contains price
+            # e.g. "BTCUSDT.P 90123.5 ..."
+            page_title = self.driver.title
+            match = re.search(r"([\d\.]+)\s", page_title)
+            if match:
+                 return float(match.group(1))
+
+            # If title parse fails, try the highlighted element on the price scale
+            # class 'price-axis-view-label--primary' or similar often highlights current price
+            
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error fetching price: {e}")
+            return None
+
     def close(self):
         """Safely quits the WebDriver."""
         if self.driver:
